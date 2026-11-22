@@ -130,10 +130,10 @@ export const ReviewCentrePage = () => {
       )}
 
       {/* Main Review Workspace */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-w-0 w-full">
         {/* Left Sidebar: Review Queue (4 Cols) */}
-        <div className="lg:col-span-4 card p-4 flex flex-col justify-between max-h-[750px] overflow-hidden border border-white/10">
-          <div className="space-y-2 flex-1 overflow-y-auto pr-1">
+        <div className="lg:col-span-4 card p-4 flex flex-col justify-between max-h-[360px] lg:max-h-[750px] overflow-hidden border border-white/10 min-w-0">
+          <div className="space-y-2 flex-1 overflow-y-auto pr-1 min-h-0">
             <span className="text-[11px] uppercase tracking-wider text-[#94A3B8] font-semibold block px-1 mb-2">
               Review Queue ({reviews.length})
             </span>
@@ -200,7 +200,7 @@ export const ReviewCentrePage = () => {
         </div>
 
         {/* Right Side: Side-by-Side Comparison Workspace (8 Cols) */}
-        <div className="lg:col-span-8 card-elevated p-6 space-y-6 border border-white/10">
+        <div className="lg:col-span-8 card-elevated p-4 sm:p-6 space-y-6 border border-white/10 min-w-0">
           {currentReview ? (
             <>
               {/* Header */}

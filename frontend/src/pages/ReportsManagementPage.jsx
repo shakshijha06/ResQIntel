@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getAdminReports } from '../services/api';
 import { StatusBadge, DisasterPill } from '../components/StatusBadge';
+import { TomTomMap } from '../components/TomTomMap';
 
 const CIVIC_CATEGORIES = [
   { value: 'all', label: 'All Categories' },
@@ -305,6 +306,31 @@ export const ReportsManagementPage = () => {
                   </span>
                 </div>
               </div>
+
+              {selectedReport.latitude && selectedReport.longitude && !isNaN(parseFloat(selectedReport.latitude)) && (
+                <div className="rounded-xl overflow-hidden border border-white/10 h-[170px] relative">
+                  <TomTomMap
+                    center={[parseFloat(selectedReport.latitude), parseFloat(selectedReport.longitude)]}
+                    zoom={15}
+                    markers={[{
+                      id: selectedReport.report_id,
+                      report_id: selectedReport.report_id,
+                      latitude: selectedReport.latitude,
+                      longitude: selectedReport.longitude,
+                      title: selectedReport.raw_location || selectedReport.disaster_type,
+                      location: selectedReport.raw_location || selectedReport.city,
+                      disaster_type: selectedReport.disaster_type,
+                      priority: 'high'
+                    }]}
+                    height="100%"
+                    interactive={true}
+                    showNoticeIfMissing={false}
+                  />
+                  <div className="absolute bottom-2 right-2 z-[1000] bg-[#14213D]/90 backdrop-blur-md px-2 py-0.5 rounded text-[9px] text-slate-300 border border-white/10 pointer-events-none">
+                    TomTom Pin Preview
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="pt-3 border-t border-white/10 flex items-center justify-between">

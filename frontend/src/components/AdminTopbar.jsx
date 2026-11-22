@@ -5,13 +5,15 @@ import {
   LogOut, 
   Check, 
   ChevronDown,
-  Settings
+  Settings,
+  Menu,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getAdminNotifications, markNotificationRead, markAllNotificationsRead } from '../services/api';
 import { Link } from 'react-router-dom';
 
-export const AdminTopbar = ({ searchQuery = '', setSearchQuery }) => {
+export const AdminTopbar = ({ searchQuery = '', setSearchQuery, onToggleMobileDrawer }) => {
   const { user, logout } = useAuth();
   
   const [notifications, setNotifications] = useState([]);
@@ -83,15 +85,26 @@ export const AdminTopbar = ({ searchQuery = '', setSearchQuery }) => {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-[#14213D]/90 backdrop-blur-xl border-b border-white/10 px-6 flex items-center justify-between">
-      <div>
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Municipal Operations Desk
-        </span>
+    <header className="sticky top-0 z-30 h-16 bg-[#14213D]/90 backdrop-blur-xl border-b border-white/10 px-4 sm:px-6 flex items-center justify-between min-w-0 w-full">
+      {/* Left: Mobile Drawer Button + Page Header */}
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          onClick={onToggleMobileDrawer}
+          className="lg:hidden p-2 -ml-1 text-slate-300 hover:text-white rounded-lg hover:bg-white/10 transition-colors shrink-0"
+          aria-label="Open navigation menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="min-w-0 truncate">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block truncate">
+            Municipal Operations Desk
+          </span>
+        </div>
       </div>
 
       {/* Right Controls */}
-      <div className="flex items-center space-x-3.5 relative">
+      <div className="flex items-center space-x-2.5 sm:space-x-3.5 relative shrink-0">
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
@@ -99,23 +112,26 @@ export const AdminTopbar = ({ searchQuery = '', setSearchQuery }) => {
               setShowNotificationMenu(!showNotificationMenu);
               setShowUserMenu(false);
             }}
-            title="Notifications"
-            className="relative p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+            className="p-2 text-slate-300 hover:text-white rounded-xl hover:bg-white/5 transition-colors relative"
+            aria-label="Notifications"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#FF6B58] rounded-full shadow-[0_0_6px_#FF6B58]" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-[#FF6B58] rounded-full shadow-[0_0_6px_#FF6B58]" />
             )}
           </button>
 
+          {/* Notifications Dropdown Panel (Responsive) */}
           {showNotificationMenu && (
-            <div className="absolute right-0 mt-2 w-80 glass-panel-elevated rounded-xl border border-white/15 shadow-2xl overflow-hidden z-50 text-xs">
-              <div className="p-3 border-b border-white/10 flex items-center justify-between bg-black/20">
-                <span className="font-semibold text-white">Operational Notifications</span>
+            <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#14213D] border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+              <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Notifications ({unreadCount})
+                </span>
                 {unreadCount > 0 && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="text-[11px] text-[#FF6B58] hover:underline"
+                    className="text-[11px] text-[#FF6B58] hover:underline font-medium"
                   >
                     Mark all read
                   </button>
@@ -124,30 +140,28 @@ export const AdminTopbar = ({ searchQuery = '', setSearchQuery }) => {
 
               <div className="max-h-72 overflow-y-auto divide-y divide-white/5">
                 {notifications.length === 0 ? (
-                  <div className="p-6 text-center text-slate-400">
-                    No active notifications.
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    No notifications
                   </div>
                 ) : (
-                  notifications.map((n) => (
+                  notifications.slice(0, 10).map((n) => (
                     <div
                       key={n.notification_id}
-                      className={`p-3 space-y-1 transition-colors ${
-                        n.is_read ? 'opacity-60 hover:opacity-100' : 'bg-[#FF6B58]/10'
+                      onClick={(e) => !n.is_read && handleMarkAsRead(n.notification_id, e)}
+                      className={`p-3 text-xs hover:bg-white/5 cursor-pointer transition-colors ${
+                        !n.is_read ? 'bg-[#1B2A4A]/50' : 'opacity-70'
                       }`}
                     >
-                      <div className="flex items-center justify-between text-xs font-semibold text-white">
-                        <span>{n.title}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-white line-clamp-1">{n.title}</span>
                         {!n.is_read && (
-                          <button
-                            onClick={(e) => handleMarkAsRead(n.notification_id, e)}
-                            className="text-[#FF6B58] hover:text-[#FF8575] text-[10px] font-normal"
-                          >
-                            Mark read
-                          </button>
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B58] shrink-0 mt-1" />
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-300 leading-normal">{n.message}</p>
-                      <span className="text-[10px] text-slate-400 block font-mono">
+                      <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">
+                        {n.message}
+                      </p>
+                      <span className="text-[9px] text-slate-400 mt-1 block">
                         {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -158,50 +172,52 @@ export const AdminTopbar = ({ searchQuery = '', setSearchQuery }) => {
           )}
         </div>
 
-        {/* User Account Desk Menu */}
+        {/* User Profile Pill Menu */}
         <div className="relative" ref={userRef}>
           <button
             onClick={() => {
               setShowUserMenu(!showUserMenu);
               setShowNotificationMenu(false);
             }}
-            className="flex items-center space-x-2 p-1.5 rounded-xl hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+            className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 transition-colors text-xs"
           >
-            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#1B2A4A] to-[#FF6B58]/50 border border-white/20 flex items-center justify-center text-white text-xs font-serif font-bold">
-              {user?.name ? user.name[0].toUpperCase() : 'A'}
+            <div className="w-6 h-6 rounded-lg bg-[#FF6B58]/20 text-[#FF6B58] flex items-center justify-center font-bold text-xs uppercase shrink-0">
+              {user?.name?.[0] || 'A'}
             </div>
-            <div className="hidden sm:flex flex-col text-left">
-              <span className="text-xs font-medium text-white leading-tight">
-                {user?.name || 'Operations Lead'}
-              </span>
-              <span className="text-[10px] text-[#FF6B58] uppercase font-mono tracking-wider -mt-0.5">
-                {user?.role || 'Admin'}
-              </span>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-medium text-slate-200 hidden md:inline truncate max-w-[120px]">
+              {user?.name || 'Administrator'}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
           </button>
 
+          {/* User Menu Dropdown */}
           {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-48 glass-panel-elevated rounded-xl border border-white/15 shadow-2xl py-1 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] bg-[#14213D] border border-white/15 rounded-2xl shadow-2xl p-2 z-50 animate-fade-in text-xs space-y-1">
               <div className="px-3 py-2 border-b border-white/10">
                 <div className="font-semibold text-white truncate">{user?.name}</div>
-                <div className="text-[11px] text-slate-400 truncate">{user?.email}</div>
+                <div className="text-[11px] text-slate-400 font-mono truncate">{user?.email}</div>
+                <div className="text-[9px] uppercase tracking-wider text-[#FF6B58] font-bold mt-0.5">
+                  Role: {user?.role || 'admin'}
+                </div>
               </div>
 
               <Link
                 to="/admin/settings"
                 onClick={() => setShowUserMenu(false)}
-                className="flex items-center gap-2 px-3 py-2 text-slate-200 hover:text-white hover:bg-white/5 transition-colors"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
               >
-                <Settings className="w-3.5 h-3.5" />
-                <span>Settings</span>
+                <Settings className="w-4 h-4 text-slate-400" />
+                <span>Account Settings</span>
               </Link>
 
               <button
-                onClick={logout}
-                className="w-full flex items-center gap-2 text-left px-3 py-2 text-rose-400 hover:bg-rose-500/10 transition-colors border-t border-white/10"
+                onClick={() => {
+                  setShowUserMenu(false);
+                  logout();
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-300 hover:bg-rose-500/15 transition-colors text-left"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4 text-rose-400" />
                 <span>Sign Out</span>
               </button>
             </div>

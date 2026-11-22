@@ -169,19 +169,23 @@ export const PublicLandingPage = () => {
         <div className="relative max-w-3xl space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-300 text-xs font-medium">
             <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <span>Civic Issue Reporting & Operational Response Platform</span>
+            <span>Bringing Community Concerns into Focus.</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-[#F8FAFC] leading-tight">
-            Report Civic Problems. <br />
-            <span className="text-[#FF6B58]">Track Progress.</span> Hold Authorities Accountable.
+            Your city. Your voice. <br />
+            <span className="text-[#FF6B58]">Report what needs attention.</span> See the change happen.
           </h1>
 
-          <p className="text-base sm:text-lg text-[#CBD5E1] leading-relaxed max-w-2xl">
-            ResQIntel empowers citizens to report local civic issues — potholes, garbage accumulation,
-            waterlogging, broken streetlights, and damaged infrastructure. We organize reports and connect directly
-            with responsible departments for verified resolution.
-          </p>
+         <div className="space-y-4">
+  <p className="text-base sm:text-lg text-[#CBD5E1] leading-relaxed max-w-2xl">
+    Everyday civic problems affect how we live, travel, and experience our neighbourhoods. Yet, a pothole, overflowing drain, garbage pile, or broken streetlight can go unnoticed when complaints are scattered and updates are hard to follow.
+  </p>
+
+  <p className="text-base sm:text-lg text-[#CBD5E1] leading-relaxed max-w-2xl">
+    ResQIntel gives these concerns a clear path. Report an issue, help bring similar complaints together, follow its progress, and see what action has been taken. Because improving a neighbourhood starts with making its problems visible.
+  </p>
+</div>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
@@ -250,7 +254,7 @@ export const PublicLandingPage = () => {
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2">
           <div>
             <span className="text-xs font-semibold text-[#FF6B58] uppercase tracking-wider">Categories</span>
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC] mt-0.5">What Can You Report?</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#F8FAFC] mt-0.5">What Needs Attention in Your Neighbourhood?</h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1">
               Select a category to start your report. Every civic observation is logged, verified, and mapped.
             </p>

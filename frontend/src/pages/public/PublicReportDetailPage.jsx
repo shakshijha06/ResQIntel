@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { StatusBadge, DisasterPill } from '../../components/StatusBadge';
+import { TomTomMap } from '../../components/TomTomMap';
+import { isTomTomConfigured } from '../../services/tomtomService';
 
 export const PublicReportDetailPage = () => {
   const { id } = useParams();
@@ -53,8 +55,23 @@ export const PublicReportDetailPage = () => {
     );
   }
 
+  const hasCoords = report.latitude && report.longitude && 
+                    !isNaN(parseFloat(report.latitude)) && 
+                    !isNaN(parseFloat(report.longitude));
+
+  const mapMarker = hasCoords ? [{
+    id: report.report_id,
+    report_id: report.report_id,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    title: report.raw_location || report.disaster_type,
+    location: report.raw_location || report.city,
+    disaster_type: report.disaster_type,
+    priority: 'high'
+  }] : [];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in py-6 px-4 sm:px-6">
       {/* Top Breadcrumb */}
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
         <Link to="/reports" className="text-xs text-[#94A3B8] hover:text-[#F8FAFC] flex items-center gap-1 font-medium transition-colors">
@@ -93,26 +110,45 @@ export const PublicReportDetailPage = () => {
         </div>
 
         {/* Geographic location info */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
-            <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">Reported Location</span>
-            <div className="flex items-center gap-1 font-medium text-[#F8FAFC]">
-              <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span>{report.raw_location || report.city || 'Not specified'}</span>
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
+              <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">Reported Location</span>
+              <div className="flex items-center gap-1 font-medium text-[#F8FAFC]">
+                <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span>{report.raw_location || report.city || 'Not specified'}</span>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
+              <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">State / Region</span>
+              <span className="font-medium text-[#F8FAFC] block">{report.state || 'India'}</span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
+              <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">Coordinates</span>
+              <span className="font-mono text-[#F8FAFC] block">
+                {hasCoords ? `${parseFloat(report.latitude).toFixed(4)}, ${parseFloat(report.longitude).toFixed(4)}` : 'Not pinned'}
+              </span>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
-            <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">State / Region</span>
-            <span className="font-medium text-[#F8FAFC] block">{report.state || 'India'}</span>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-[#0D1527] border border-white/10 space-y-1">
-            <span className="text-[#94A3B8] block text-[11px] uppercase tracking-wider">Coordinates</span>
-            <span className="font-mono text-[#F8FAFC] block">
-              {report.latitude ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : 'Not pinned'}
-            </span>
-          </div>
+          {/* Embedded TomTom Map View */}
+          {hasCoords && (
+            <div className="rounded-xl overflow-hidden border border-white/15 h-[240px] relative shadow-inner">
+              <TomTomMap
+                center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
+                zoom={15}
+                markers={mapMarker}
+                height="100%"
+                interactive={true}
+                showNoticeIfMissing={false}
+              />
+              <div className="absolute bottom-2.5 right-2.5 z-[1000] bg-[#14213D]/90 backdrop-blur-md px-2.5 py-1 rounded text-[10px] text-slate-300 border border-white/10">
+                TomTom Map View
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Incident link if grouped */}

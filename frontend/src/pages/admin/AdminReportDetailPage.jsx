@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getAdminReportDetail, testGeminiExtraction } from '../../services/api';
 import { StatusBadge, DisasterPill } from '../../components/StatusBadge';
+import { TomTomMap } from '../../components/TomTomMap';
 import api from '../../services/api';
 
 const FieldRow = ({ label, value, mono = false, warn = false }) => {
@@ -196,10 +197,36 @@ export const AdminReportDetailPage = () => {
             <FieldRow label="Longitude" value={report.longitude} mono />
           </div>
 
-          {report.latitude && report.longitude ? (
-            <div className="mt-3 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center gap-2 text-xs text-emerald-300">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Coordinates available — this report can be plotted on the operational map.</span>
+          {report.latitude && report.longitude && !isNaN(parseFloat(report.latitude)) ? (
+            <div className="mt-3 space-y-2">
+              <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Pinned on TomTom Street Map</span>
+                </div>
+                <span className="font-mono text-[10px] text-slate-400">
+                  {parseFloat(report.latitude).toFixed(4)}, {parseFloat(report.longitude).toFixed(4)}
+                </span>
+              </div>
+              <div className="rounded-xl overflow-hidden border border-white/10 h-[200px] relative">
+                <TomTomMap
+                  center={[parseFloat(report.latitude), parseFloat(report.longitude)]}
+                  zoom={15}
+                  markers={[{
+                    id: report.report_id,
+                    report_id: report.report_id,
+                    latitude: report.latitude,
+                    longitude: report.longitude,
+                    title: report.raw_location || report.disaster_type,
+                    location: report.raw_location || report.city,
+                    disaster_type: report.disaster_type,
+                    priority: 'high'
+                  }]}
+                  height="100%"
+                  interactive={true}
+                  showNoticeIfMissing={false}
+                />
+              </div>
             </div>
           ) : (
             <div className="mt-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20 flex items-center gap-2 text-xs text-amber-300">

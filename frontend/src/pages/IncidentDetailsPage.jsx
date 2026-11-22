@@ -188,7 +188,7 @@ export const IncidentDetailsPage = () => {
   const reportsCount = associatedReports.length || incident.report_count || 1;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in w-full min-w-0">
       {/* Top back bar */}
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
         <Link

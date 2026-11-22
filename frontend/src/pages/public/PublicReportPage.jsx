@@ -2,16 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FilePlus, MapPin, AlertCircle, CheckCircle2, ArrowRight, Upload, X, Image as ImageIcon } from 'lucide-react';
 import { submitPublicReport } from '../../services/api';
 import { Link } from 'react-router-dom';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
-
-// Fix leaflet default icon URLs
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+import { LocationPickerMap } from '../../components/LocationPickerMap';
 
 const EMERGENCY_TYPES = new Set(['flood', 'fire', 'earthquake', 'landslide', 'cyclone']);
 
@@ -50,16 +41,6 @@ const MAX_FILES = 3;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm'];
 
-// Map click handler component
-function LocationPicker({ onLocationSelect, lat, lng }) {
-  useMapEvents({
-    click(e) {
-      onLocationSelect(e.latlng.lat.toFixed(6), e.latlng.lng.toFixed(6));
-    },
-  });
-  return lat && lng ? <Marker position={[parseFloat(lat), parseFloat(lng)]} /> : null;
-}
-
 function formatFileSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -92,19 +73,6 @@ export const PublicReportPage = () => {
   const [submissionResult, setSubmissionResult] = useState(null);
   const [error, setError] = useState(null);
   const fileInputRef = useRef(null);
-
-  const rawMaptilerKey = import.meta.env.VITE_MAPTILER_API_KEY;
-  const isKeyConfigured = rawMaptilerKey && 
-    rawMaptilerKey.trim() !== '' && 
-    rawMaptilerKey.trim() !== 'your_maptiler_api_key_here';
-
-  const tileUrl = isKeyConfigured
-    ? `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${rawMaptilerKey}`
-    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-
-  const tileAttribution = isKeyConfigured
-    ? '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>'
-    : '&copy; OpenStreetMap &copy; CARTO';
 
   useEffect(() => {
     return () => {
@@ -154,6 +122,36 @@ export const PublicReportPage = () => {
       reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  };
+
+  // Called when LocationPickerMap updates coordinates or reverse geocode details
+  const handleLocationChange = (loc) => {
+    setFormData((prev) => {
+      const updates = {
+        ...prev,
+        latitude: loc.latitude !== undefined ? loc.latitude : prev.latitude,
+        longitude: loc.longitude !== undefined ? loc.longitude : prev.longitude,
+      };
+
+      // Only auto-populate text fields if they are currently blank or from an automated pin
+      if (loc.raw_location && (!prev.raw_location || prev.raw_location.trim() === '')) {
+        updates.raw_location = loc.raw_location;
+      } else if (loc.raw_location && !prev.raw_location) {
+        updates.raw_location = loc.raw_location;
+      }
+
+      if (loc.city && (!prev.city || prev.city.trim() === '')) {
+        updates.city = loc.city;
+      }
+      if (loc.district && (!prev.district || prev.district.trim() === '')) {
+        updates.district = loc.district;
+      }
+      if (loc.state && (!prev.state || prev.state.trim() === '')) {
+        updates.state = loc.state;
+      }
+
+      return updates;
     });
   };
 
@@ -322,11 +320,28 @@ export const PublicReportPage = () => {
             )}
           </div>
 
-          {/* Section 2: Location */}
+          {/* Section 2: Geographic Location Details (TomTom Integration) */}
           <div className="space-y-4 pt-2 border-t border-white/10">
-            <h3 className="text-xs uppercase tracking-wider text-[#FF6B58] font-bold">
-              2. Geographic Location Details
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase tracking-wider text-[#FF6B58] font-bold">
+                2. Geographic Location Details
+              </h3>
+              <span className="text-[10px] text-slate-400">Powered by TomTom Maps</span>
+            </div>
+
+            {/* Interactive TomTom Map with Places Search & Geolocation */}
+            <div className="space-y-1.5">
+              <label className="form-label flex items-center justify-between">
+                <span>Pinpoint Issue Location</span>
+                <span className="text-[10px] text-slate-400">Search place, use GPS, or click & drag pin</span>
+              </label>
+              <LocationPickerMap
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                initialAddress={formData.raw_location}
+                onLocationChange={handleLocationChange}
+              />
+            </div>
 
             <div>
               <label className="form-label">
@@ -335,7 +350,7 @@ export const PublicReportPage = () => {
               <input
                 type="text"
                 required
-                placeholder="e.g. Near Kamalabari Ghat, Majuli or Ecospace ORR, Bellandur"
+                placeholder="e.g. Near Naskarpara Main Road or Park Street Metro Station"
                 value={formData.raw_location}
                 onChange={(e) => setFormData({ ...formData, raw_location: e.target.value })}
                 className="form-input text-xs"
@@ -357,7 +372,7 @@ export const PublicReportPage = () => {
                 <label className="form-label">District</label>
                 <input
                   type="text"
-                  placeholder="e.g. Kolkata"
+                  placeholder="e.g. North 24 Parganas"
                   value={formData.district}
                   onChange={(e) => setFormData({ ...formData, district: e.target.value })}
                   className="form-input text-xs"
@@ -367,37 +382,11 @@ export const PublicReportPage = () => {
                 <label className="form-label">City / Locality</label>
                 <input
                   type="text"
-                  placeholder="e.g. Park Street"
+                  placeholder="e.g. Kolkata"
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                   className="form-input text-xs"
                 />
-              </div>
-            </div>
-
-            {/* Interactive Map Pin Placement */}
-            <div className="space-y-2 pt-1">
-              <label className="form-label flex items-center justify-between">
-                <span>Pinpoint Exact Location on Map</span>
-                <span className="text-[10px] text-slate-400">Click to place or move marker</span>
-              </label>
-              <div className="rounded-xl overflow-hidden border border-white/15 h-[260px] relative">
-                <MapContainer
-                  center={[20.5937, 78.9629]}
-                  zoom={5}
-                  style={{ height: '100%', width: '100%' }}
-                  scrollWheelZoom={false}
-                >
-                  <TileLayer
-                    url={tileUrl}
-                    attribution={tileAttribution}
-                  />
-                  <LocationPicker
-                    onLocationSelect={(lat, lng) => setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }))}
-                    lat={formData.latitude}
-                    lng={formData.longitude}
-                  />
-                </MapContainer>
               </div>
             </div>
 
@@ -410,7 +399,7 @@ export const PublicReportPage = () => {
                   placeholder="e.g. 22.5726"
                   value={formData.latitude}
                   onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                  className="form-input text-xs"
+                  className="form-input text-xs font-mono"
                 />
               </div>
               <div>
@@ -421,7 +410,7 @@ export const PublicReportPage = () => {
                   placeholder="e.g. 88.3639"
                   value={formData.longitude}
                   onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                  className="form-input text-xs"
+                  className="form-input text-xs font-mono"
                 />
               </div>
             </div>
