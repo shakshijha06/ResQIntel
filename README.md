@@ -46,7 +46,7 @@ ResQIntel is built with two distinct user experiences sharing a unified FastAPI 
 - **Tokens:** Short-lived `PyJWT` bearer access tokens (configurable `ACCESS_TOKEN_EXPIRE_MINUTES = 120`).
 - **Initial Bootstrap Admin Account:**
   - **Email:** `admin@resqintel.org`
-  - **Password:** `Admin@ResQ2026!`
+  - **Password:** `setup a strong password`
   - **Role:** `admin`
 - **Role Hierarchy:**
   - **ADMIN:** Full operational control; manage user accounts, publish/unpublish bulletins, resolve reviews, update cluster metadata.
