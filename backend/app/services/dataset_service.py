@@ -122,13 +122,8 @@ class DatasetService:
         """Remove a dataset metadata entry and its imported records."""
         # Remove from datasets
         self.repo.delete("datasets", "dataset_id", dataset_id)
-        # Remove reports with matching dataset_id
-        all_reps = self.repo.get_all("reports")
-        retained = [r for r in all_reps if r.get("dataset_id") != dataset_id]
-        if len(retained) < len(all_reps):
-            # overwrite collection
-            if hasattr(self.repo, "_write_data"):
-                self.repo._write_data("reports", retained)
+        # Remove reports with matching dataset_id using backend-agnostic delete_many
+        self.repo.delete_many("reports", {"dataset_id": dataset_id})
         return True
 
     # --- SYNTHETIC SCENARIOS GENERATOR ---
@@ -315,19 +310,8 @@ class DatasetService:
 
     def reset_synthetic_data(self) -> Dict[str, Any]:
         """Delete all synthetic records across reports, reviews, and test data."""
-        # Reports
-        reports = self.repo.get_all("reports")
-        real_reports = [r for r in reports if r.get("data_origin") != "synthetic"]
-        deleted_reports = len(reports) - len(real_reports)
-        if hasattr(self.repo, "_write_data"):
-            self.repo._write_data("reports", real_reports)
-
-        # Reviews
-        reviews = self.repo.get_all("reviews")
-        real_reviews = [rv for rv in reviews if rv.get("data_origin") != "synthetic"]
-        deleted_reviews = len(reviews) - len(real_reviews)
-        if hasattr(self.repo, "_write_data"):
-            self.repo._write_data("reviews", real_reviews)
+        deleted_reports = self.repo.delete_many("reports", {"data_origin": "synthetic"})
+        deleted_reviews = self.repo.delete_many("reviews", {"data_origin": "synthetic"})
 
         return {
             "status": "success",

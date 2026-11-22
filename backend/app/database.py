@@ -1,9 +1,18 @@
 import json
 import os
+import re
 import threading
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from app.config import settings
+
+def _sanitize_error_message(err: Exception) -> str:
+    """Strip any MongoDB URIs, credentials or connection strings from error messages."""
+    msg = str(err)
+    # Remove standard mongo uri patterns: mongodb://user:pass@host or mongodb+srv://...
+    msg = re.sub(r'mongodb(?:\+srv)?://[^\s@]+@[^\s/]+', 'mongodb://[REDACTED_AUTH]@[REDACTED_HOST]', msg)
+    msg = re.sub(r'mongodb(?:\+srv)?://[^\s]+', 'mongodb://[REDACTED_URI]', msg)
+    return msg
 
 class BaseRepository(ABC):
     @abstractmethod
@@ -39,6 +48,10 @@ class BaseRepository(ABC):
         pass
 
     @abstractmethod
+    def delete_many(self, collection_name: str, query: Dict[str, Any]) -> int:
+        pass
+
+    @abstractmethod
     def count(self, collection_name: str, query: Optional[Dict[str, Any]] = None) -> int:
         pass
 
@@ -50,7 +63,7 @@ class BaseRepository(ABC):
 class JsonFileRepository(BaseRepository):
     """
     Thread-safe, robust local persistent JSON repository.
-    Used for local development or when MongoDB Atlas is unreachable.
+    Used explicitly when STORAGE_BACKEND=json.
     """
     def __init__(self, data_dir: str):
         self.data_dir = data_dir
@@ -148,6 +161,24 @@ class JsonFileRepository(BaseRepository):
                 return True
             return False
 
+    def delete_many(self, collection_name: str, query: Dict[str, Any]) -> int:
+        with self.lock:
+            items = self._read_data(collection_name)
+            orig_len = len(items)
+            kept = []
+            for item in items:
+                match = True
+                for k, v in query.items():
+                    if item.get(k) != v:
+                        match = False
+                        break
+                if not match:
+                    kept.append(item)
+            deleted_count = orig_len - len(kept)
+            if deleted_count > 0:
+                self._write_data(collection_name, kept)
+            return deleted_count
+
     def count(self, collection_name: str, query: Optional[Dict[str, Any]] = None) -> int:
         with self.lock:
             items = self._read_data(collection_name)
@@ -175,12 +206,74 @@ class JsonFileRepository(BaseRepository):
 
 class MongoRepository(BaseRepository):
     """
-    Full MongoDB Atlas implementation using PyMongo.
+    Production-grade MongoDB Atlas implementation using PyMongo.
+    Enforces connection verification on startup and manages collection indexes.
     """
     def __init__(self, uri: str, db_name: str):
         from pymongo import MongoClient
-        self.client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        self.client = MongoClient(uri, serverSelectionTimeoutMS=8000)
         self.db = self.client[db_name]
+        # Verify connection immediately upon instantiation
+        self.client.admin.command('ping')
+        # Ensure collection indexes
+        self.ensure_indexes()
+
+    def ensure_indexes(self):
+        """
+        Creates unique indexes for stable record IDs across all collections
+        and performance indexes for frequent query paths.
+        Safe to run repeatedly (idempotent in MongoDB).
+        """
+        id_index_specs = {
+            "activity_logs": "activity_id",
+            "audit_logs": "log_id",
+            "incidents": "incident_id",
+            "notifications": "notification_id",
+            "reports": "report_id",
+            "reviews": "review_id",
+            "submission_tracking": "reference_id",
+            "users": "user_id",
+        }
+        for coll_name, id_field in id_index_specs.items():
+            try:
+                self.db[coll_name].create_index([(id_field, 1)], unique=True, background=True)
+            except Exception as e:
+                print(f"[MongoRepository] Index creation notice on {coll_name}.{id_field}: {_sanitize_error_message(e)}")
+
+        # Unique index on users.email
+        try:
+            self.db["users"].create_index([("email", 1)], unique=True, background=True)
+        except Exception as e:
+            print(f"[MongoRepository] Index creation notice on users.email: {_sanitize_error_message(e)}")
+
+        # Performance query indexes
+        try:
+            self.db["reports"].create_index([("associated_incident_id", 1)], background=True)
+            self.db["reports"].create_index([("disaster_type", 1)], background=True)
+            self.db["reports"].create_index([("data_origin", 1)], background=True)
+            self.db["reports"].create_index([("created_at", -1)], background=True)
+
+            self.db["incidents"].create_index([("current_status", 1)], background=True)
+            self.db["incidents"].create_index([("disaster_type", 1)], background=True)
+            self.db["incidents"].create_index([("updated_at", -1)], background=True)
+
+            self.db["reviews"].create_index([("status", 1)], background=True)
+            self.db["reviews"].create_index([("created_at", -1)], background=True)
+
+            self.db["notifications"].create_index([("is_read", 1)], background=True)
+            self.db["notifications"].create_index([("created_at", -1)], background=True)
+
+            self.db["audit_logs"].create_index([("timestamp", -1)], background=True)
+            self.db["submission_tracking"].create_index([("token_hash", 1)], background=True)
+        except Exception as e:
+            print(f"[MongoRepository] Query index creation notice: {_sanitize_error_message(e)}")
+
+    def close(self):
+        """Close the PyMongo client connection."""
+        try:
+            self.client.close()
+        except Exception:
+            pass
 
     def get_all(self, collection_name: str) -> List[Dict[str, Any]]:
         docs = list(self.db[collection_name].find())
@@ -228,6 +321,10 @@ class MongoRepository(BaseRepository):
         res = self.db[collection_name].delete_one({id_field: item_id})
         return res.deleted_count > 0
 
+    def delete_many(self, collection_name: str, query: Dict[str, Any]) -> int:
+        res = self.db[collection_name].delete_many(query)
+        return res.deleted_count
+
     def count(self, collection_name: str, query: Optional[Dict[str, Any]] = None) -> int:
         q = query or {}
         return self.db[collection_name].count_documents(q)
@@ -245,21 +342,39 @@ class MongoRepository(BaseRepository):
             return {
                 "status": "unhealthy",
                 "backend": "mongodb",
-                "error": str(e),
+                "error": _sanitize_error_message(e),
                 "connected": False
             }
 
 
 def get_repository() -> BaseRepository:
-    if settings.STORAGE_BACKEND == "mongodb" and settings.MONGODB_URI:
+    backend_mode = (settings.STORAGE_BACKEND or "").strip().lower()
+
+    if backend_mode == "mongodb":
+        if not settings.MONGODB_URI or not settings.MONGODB_URI.strip():
+            raise RuntimeError(
+                "CRITICAL STARTUP ERROR: STORAGE_BACKEND is set to 'mongodb', but MONGODB_URI is not configured. "
+                "Silent fallback to JSON is disabled. Please configure MONGODB_URI in your environment or backend/.env file."
+            )
+
         try:
             repo = MongoRepository(settings.MONGODB_URI, settings.MONGODB_DB_NAME)
-            health = repo.is_healthy()
-            if health.get("connected"):
-                return repo
-            print(f"[Warning] MongoDB unreachable ({health.get('error')}). Using resilient local JSON repository.")
+            return repo
         except Exception as e:
-            print(f"[Warning] Failed to initialize MongoRepository: {e}. Falling back to JSON repository.")
-    return JsonFileRepository(settings.get_resolved_data_dir())
+            sanitized = _sanitize_error_message(e)
+            raise RuntimeError(
+                f"CRITICAL STARTUP ERROR: STORAGE_BACKEND is set to 'mongodb', but failed to connect to "
+                f"MongoDB Atlas database '{settings.MONGODB_DB_NAME}'. Silent fallback to JSON is disabled. "
+                f"Connection failure details: {sanitized}"
+            ) from None
+
+    elif backend_mode == "json":
+        return JsonFileRepository(settings.get_resolved_data_dir())
+
+    else:
+        raise ValueError(
+            f"CRITICAL CONFIGURATION ERROR: Invalid STORAGE_BACKEND '{settings.STORAGE_BACKEND}'. "
+            f"Supported values are 'mongodb' or 'json'. Startup halted."
+        )
 
 db_repo = get_repository()

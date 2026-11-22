@@ -17,19 +17,34 @@ class EmergencyService:
         self._ensure_bootstrap_admin()
 
     def _ensure_bootstrap_admin(self):
-        """Ensures the initial administrator account exists."""
+        """
+        Ensures the initial administrator account exists.
+        Guards against duplicates:
+         - If a user with the configured email already exists, skip creation entirely.
+         - If the email is empty/unset, skip bootstrap (prevents blank-email inserts).
+        This preserves the existing admin USR-681AC8 without creating a second record.
+        """
+        if not settings.BOOTSTRAP_ADMIN_EMAIL or not settings.BOOTSTRAP_ADMIN_PASSWORD:
+            return  # No bootstrap credentials configured — skip silently
+
         admin = self.repo.find_one("users", {"email": settings.BOOTSTRAP_ADMIN_EMAIL})
-        if not admin:
-            admin_user = {
-                "user_id": f"USR-{uuid.uuid4().hex[:6].upper()}",
-                "email": settings.BOOTSTRAP_ADMIN_EMAIL,
-                "name": settings.BOOTSTRAP_ADMIN_NAME,
-                "role": "admin",
-                "hashed_password": hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
-                "is_active": True,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
+        if admin:
+            return  # Admin already exists — do not create a duplicate
+
+        admin_user = {
+            "user_id": f"USR-{uuid.uuid4().hex[:6].upper()}",
+            "email": settings.BOOTSTRAP_ADMIN_EMAIL,
+            "name": settings.BOOTSTRAP_ADMIN_NAME,
+            "role": "admin",
+            "hashed_password": hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        try:
             self.repo.insert("users", admin_user)
+        except Exception:
+            # Unique index constraint violation means admin already exists — safe to ignore
+            pass
 
     # --- USER AUTHENTICATION & MANAGEMENT ---
     def authenticate_user(self, email: str, password: str) -> Optional[Dict[str, Any]]:
