@@ -403,7 +403,7 @@ cd RESQINTEL
 - **Citizen Report Tracking**: `http://localhost:5173/track`
 - **Admin Operations Desk**: `http://localhost:5173/admin/login`
   - **Default Email**: `admin@resqintel.org`
-  - **Default Password**: `Admin@ResQ2026!` *(Configurable via backend `.env`)*
+  - **Default Password**: `set up a strong password` *(Configurable via backend `.env`)*
 
 ---
 
