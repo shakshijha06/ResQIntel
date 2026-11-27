@@ -106,6 +106,7 @@ export const LocationPickerMap = ({
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   // Geolocation state
   const [locating, setLocating] = useState(false);
@@ -128,15 +129,31 @@ export const LocationPickerMap = ({
     }
   }, [latitude, longitude, hasValidCoords]);
 
-  // Close suggestions when clicking outside
+  // Reset keyboard highlight whenever suggestions list updates
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [suggestions]);
+
+  // Close suggestions when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
         setShowSuggestions(false);
       }
     };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+      }
+    };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   // Handle address reverse-geocoding when coordinates change
@@ -224,6 +241,7 @@ export const LocationPickerMap = ({
     setSearchQuery(item.title);
     setShowSuggestions(false);
     setSuggestions([]);
+    setHighlightedIndex(-1);
 
     const newLat = parseFloat(item.latitude);
     const newLng = parseFloat(item.longitude);
@@ -242,6 +260,33 @@ export const LocationPickerMap = ({
       state: item.state || '',
       postalCode: item.postalCode || ''
     });
+  };
+
+  // Keyboard navigation for suggestions
+  const handleInputKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === 'ArrowDown' && suggestions.length > 0) {
+        setShowSuggestions(true);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev + 1 < suggestions.length ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === 'Enter') {
+      if (highlightedIndex >= 0 && highlightedIndex < suggestions.length) {
+        e.preventDefault();
+        handleSelectSuggestion(suggestions[highlightedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setShowSuggestions(false);
+    }
   };
 
   // Current location handler
@@ -307,15 +352,16 @@ export const LocationPickerMap = ({
   return (
     <div className="space-y-3">
       {/* Search and Current Location Bar */}
-      <div className="space-y-2" ref={searchContainerRef}>
+      <div className="space-y-2 relative z-20" ref={searchContainerRef}>
         <div className="flex flex-col sm:flex-row gap-2">
           {/* Places Search Input */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 z-20">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={handleSearchInputChange}
+              onKeyDown={handleInputKeyDown}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="Search street, locality, landmark, city, or PIN code (TomTom)..."
               className="form-input pl-9 pr-9 text-xs w-full bg-[#0D1527] border-white/15 focus:border-[#FF6B58]"
@@ -330,8 +376,10 @@ export const LocationPickerMap = ({
                   setSearchQuery('');
                   setSuggestions([]);
                   setShowSuggestions(false);
+                  setHighlightedIndex(-1);
                 }}
                 className="p-1 text-slate-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2"
+                aria-label="Clear location search"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -339,19 +387,28 @@ export const LocationPickerMap = ({
 
             {/* Suggestions Dropdown */}
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-[#14213D] border border-white/20 rounded-xl shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-white/5 border-b border-white/5">
-                  TomTom Search Suggestions
+              <div
+                className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-[#14213D] border border-white/20 rounded-xl shadow-2xl overflow-hidden max-h-60 sm:max-h-64 overflow-y-auto overscroll-contain"
+                style={{
+                  boxShadow: '0 16px 36px -4px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+                }}
+              >
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider bg-white/5 border-b border-white/5 flex items-center justify-between">
+                  <span>TomTom Search Suggestions</span>
+                  <span className="text-[9px] text-slate-500 lowercase">{suggestions.length} results</span>
                 </div>
-                {suggestions.map((item) => (
+                {suggestions.map((item, idx) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => handleSelectSuggestion(item)}
-                    className="w-full text-left px-3.5 py-2.5 hover:bg-white/10 transition-colors border-b border-white/5 last:border-0 flex items-start gap-2.5 group"
+                    onMouseEnter={() => setHighlightedIndex(idx)}
+                    className={`w-full text-left px-3.5 py-2.5 transition-colors border-b border-white/5 last:border-0 flex items-start gap-2.5 group cursor-pointer ${
+                      highlightedIndex === idx ? 'bg-white/15' : 'hover:bg-white/10'
+                    }`}
                   >
                     <MapPin className="w-3.5 h-3.5 text-[#FF6B58] shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="text-xs font-semibold text-[#F8FAFC] truncate">
                         {item.title}
                       </div>
@@ -419,7 +476,7 @@ export const LocationPickerMap = ({
       </div>
 
       {/* Map Container */}
-      <div className="rounded-xl overflow-hidden border border-white/15 h-[300px] relative bg-[#0A1120] shadow-inner">
+      <div className="rounded-xl overflow-hidden border border-white/15 h-[300px] relative z-0 isolate bg-[#0A1120] shadow-inner">
         {hasTomTom ? (
           <MapContainer
             center={mapCenter}
