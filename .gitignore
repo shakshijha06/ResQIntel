@@ -27,3 +27,5 @@ backend/app/data/*.json
 *.log
 .DS_Store
 Thumbs.db
+
+backend/data_backup_before_mongodb/
